@@ -1,0 +1,271 @@
+/* Author Hafiz Haq 
+   
+*/
+
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+import java.text.SimpleDateFormat;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class JavaJNI extends JFrame implements ActionListener
+{
+	static {System.loadLibrary("JNI_Interface");}  
+    
+    public static native int open(String devName);  
+    public static native void conf(final int fileDescr);
+    public static native void write(final int fileDescr, String s);
+    public static native String read(final int fileDescr);
+    public static native void close(final int fileDescr);
+    
+	private static final long serialVersionUID = 1L;
+	
+	JPanel panel,panel1;
+	JLabel label1, label2, label3, label4, label5, label6;
+	JTextField tf1,tf2,tf3, tf4;
+	JButton button;
+	JTextArea textArea;
+	Timer timer = null;	
+	MyTaskSender myTaskSender;
+	MyTaskReader myTaskReader;
+
+	 	
+	public JavaJNI()
+	{
+		setLayout (new FlowLayout());
+		
+		panel = new JPanel ();
+		
+		
+		label1 = new JLabel ("URL: ");
+		panel.add(label1);
+		
+		tf1 = new JTextField ("http://localhost/Kamran/XAMPP ");
+		panel.add(tf1);
+		
+		label2 = new JLabel ("JDBC: ");
+		panel.add(label2);
+		
+		tf2 = new JTextField ("Connect to MySQL ");
+		panel.add(tf2);
+		add(panel);
+		
+		panel1 = new JPanel ();
+		
+		label3 = new JLabel ("Serial Port: ");
+		panel1.add(label3);
+		
+		tf3 = new JTextField ("/dev/ttyUSB0");
+		panel1.add(tf3);
+		
+		label4 = new JLabel ("BAUDRATE: ");
+		panel1.add(label4);
+				
+		tf4 = new JTextField ("115200       ");
+		panel1.add(tf4);
+		add(panel1);
+		
+		label5 = new JLabel ("Info:    8N1");
+		add(label5);
+		
+		label6 = new JLabel ("                 ");
+		add(label6);
+		
+		button = new JButton ("Get Data");
+		add(button);
+		
+		textArea = new JTextArea(100,10);
+		textArea.setSize(420,400);    
+
+		    textArea.setLineWrap(true);
+		    textArea.setEditable(false);
+		    textArea.setVisible(true);
+		add(textArea);
+			
+		button.addActionListener(this);
+				
+		myTaskSender = new MyTaskSender(this);
+		myTaskReader = new MyTaskReader(this);		
+	}
+	
+	public void setText(String text)
+	{
+		textArea.append(text);
+		textArea.append("\n");
+	}
+	
+	
+	public void actionPerformed(ActionEvent e)
+	{
+		if(button == e.getSource())
+		{
+			textArea.setText("Initializing..." + "\n");
+		
+			if(timer == null)
+			{
+				timer = new Timer();
+				timer.schedule(myTaskSender, 0, 2000);
+				timer.schedule(myTaskReader, 500, 2000);
+			}
+		}
+	}	
+	
+	public static void main(String args[])
+	{
+		JavaJNI gui = new JavaJNI();
+		gui.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		gui.setVisible(true);
+		gui.setSize(500,500);
+		gui.setTitle("GUI");
+	
+	}	
+}
+
+class MyTaskSender extends TimerTask
+{
+	private JavaJNI guiApp;
+
+	public MyTaskSender(JavaJNI guiApp)
+	{
+		this.guiApp = guiApp;
+	}
+	
+	public void run()
+	{
+			guiApp.setText("Sender");			
+			int fd = JavaJNI.open("/dev/ttyUSB0");
+			JavaJNI.conf(fd);
+			JavaJNI.write(fd, "s");
+	}
+}
+
+class MyTaskReader extends TimerTask
+{
+	private JavaJNI guiApp;
+
+	public MyTaskReader(JavaJNI guiApp)
+	{
+		this.guiApp = guiApp;
+	}
+	
+	public void run()
+	{
+			guiApp.setText("Reader");			
+			int fd = JavaJNI.open("/dev/ttyUSB0");
+			JavaJNI.conf(fd);
+			String r;
+			r = JavaJNI.read(fd);
+			if (r.isEmpty() == true)
+			{
+				guiApp.setText("No Data Received");
+				guiApp.setText("Unable to open /dev/ttyUSB0 : No such file or directory");
+			}
+			else
+			{
+			int i,j,k,l,m,n;
+			String temp,light,batt;
+			i = r.indexOf('T');
+			j = r.lastIndexOf('C');
+			temp = r.substring(i, j);
+			k = r.indexOf('L');
+			l = r.lastIndexOf('x');
+			light = r.substring(k, l);
+			m = r.indexOf('S');
+			n = r.lastIndexOf('V');
+			batt = r.substring(m, n);
+			int ii,jj,kk,ll,mm,nn;
+			String temp1,light1,batt1;
+			ii = temp.indexOf('=');
+			jj = temp.lastIndexOf('.');
+			temp1 = temp.substring(ii, jj);
+			kk = light.indexOf('=');
+			ll = light.lastIndexOf('.');
+			light1 = light.substring(kk, ll);
+			mm = batt.indexOf('=');
+			nn = batt.lastIndexOf('V');
+			batt1 = batt.substring(mm, nn);
+			int t1 = extractInt(temp1);
+	        int l1 = extractInt(light1);
+	        int b1 = extractInt(batt1);
+			guiApp.setText(r);
+			Connection conn = null;
+
+	           try
+	           {
+	               String userName = "pma";
+	               String password = "";
+	               String url = "jdbc:mysql://localhost/test";
+	               Class.forName ("com.mysql.jdbc.Driver").newInstance ();
+	               conn = DriverManager.getConnection (url, userName, password);
+	               System.out.println ("Database connection established");
+	           }
+	           catch (Exception e)
+	           {
+	               guiApp.setText("Cannot connect to database server");
+	           }
+	           finally
+	           {
+	               if (conn != null)
+	               {
+	                   try
+	                   {
+	                	   /*Inserting table*************************************/
+	                	   Statement s = conn.createStatement ();
+	                	   int count;
+	                	   java.util.Date myDate = new java.util.Date();
+	                	   SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+	                	   SimpleDateFormat formatter1 = new SimpleDateFormat("hh:mm:ss");
+	                	   String strDate = formatter.format(myDate);
+	                	   String strTime = formatter1.format(myDate);
+	                	   s.executeUpdate ("DROP TABLE IF EXISTS data");
+	                	   
+	                	   s.executeUpdate (
+	                	               "CREATE TABLE data ("
+	                	               + "id INT UNSIGNED NOT NULL AUTO_INCREMENT,"
+	                	               + "PRIMARY KEY (id),"
+	                	               + "Temperature CHAR(40), Accelerometer CHAR(40)," 
+	                	               + "Battery CHAR(40), Time CHAR(40), Date CHAR(40))");
+	                	   
+	                	   count = s.executeUpdate (
+	                	               "INSERT INTO data (Temperature, Accelerometer," +
+	                	               "Battery, Time, Date)"
+	                	               + " VALUES"
+	                	               + "('"+t1+"', '"+l1+"', '"+b1+"', '"+strTime+"', '"+strDate+"'),"
+	                	               + "('"+t1+"', '"+l1+"', '"+b1+"', '"+strTime+"', '"+strDate+"'),"
+	                	               + "('"+t1+"', '"+l1+"', '"+b1+"', '"+strTime+"', '"+strDate+"'),"
+	                	               + "('"+t1+"', '"+l1+"', '"+b1+"', '"+strTime+"', '"+strDate+"')");
+	                	   guiApp.setText(count + " rows were inserted");
+	                	   s.close ();
+	                	   guiApp.setText("Database connection terminated");
+	                       conn.close ();
+	                   }
+	                   catch (Exception e) {  }
+	               }
+	           }
+			System.out.print(temp);
+			System.out.print(light);
+			System.out.print(batt);
+			System.out.print(temp1);
+			System.out.print(light1);
+			System.out.print(batt1);
+			
+			}
+		    JavaJNI.close(fd);
+	}
+	public static int extractInt(String t)
+	{
+		Matcher matcher = Pattern.compile("\\d+").matcher(t);
+
+        if (!matcher.find())
+            throw new NumberFormatException("For input string [" + t + "]");
+
+        return Integer.parseInt(matcher.group());
+	}
+}
