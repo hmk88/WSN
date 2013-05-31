@@ -1,0 +1,100 @@
+/*
+ * JavaJNI.c
+ *
+ *  Created on: Feb 27, 2013
+ *      Author: kamran
+ */
+#include <jni.h>
+#include "JavaJNI.h"
+#include <stdio.h>   /* Standard input/output definitions */
+#include <string.h>  /* String function definitions */
+#include <unistd.h>  /* UNIX standard function definitions */
+#include <fcntl.h>   /* File control definitions */
+#include <errno.h>   /* Error number definitions */
+#include <termios.h> /* POSIX terminal control definitions */
+
+/*Opening the port********************************************/
+
+JNIEXPORT jint JNICALL Java_JavaJNI_open(JNIEnv *env,
+    jobject thisobject, jstring jd)
+{
+	int fd;
+    	const char *devName;
+    	devName = (*env)->GetStringUTFChars(env, jd, 0);
+
+	fd = open(devName, O_RDWR | O_NOCTTY | O_NDELAY);
+	if (fd == -1)
+	{
+		perror("open_port: Unable to open /dev/ttyUSB0 ");
+		return -1;
+	}
+	else
+	{
+		fcntl(fd, F_SETFL, 0);
+		(*env)->ReleaseStringUTFChars(env, jd, devName);
+	}
+	return fd;
+}
+
+/************************************************************/
+
+
+/*Configuring the Port***************************************/
+
+JNIEXPORT void JNICALL Java_JavaJNI_conf(JNIEnv *env,
+    jobject thisobject, jint fdescr)
+{
+	int fd;
+	tcgetattr(fd, &options);
+	cfsetispeed(&options, B115200);
+	cfsetospeed(&options, B115200);
+	options.c_cflag |= (CLOCAL | CREAD);
+	tcsetattr(fd, TCSANOW, &options);
+
+	//Initialize a NON-BLOCKING read function.
+	// fcntl(fd, F_SETFL, 0); // BLOCKING
+	fcntl(fd, F_SETFL, FNDELAY); // NONBLOCKING
+
+}
+
+
+/*Reading from the port**************************************/
+
+JNIEXPORT jstring JNICALL Java_JavaJNI_read(JNIEnv *env,
+    jobject thisobject, jint fdescr)
+{
+
+	int fd;
+	jstring receivedString = NULL;
+	char buffer[255];  // Input buffer
+	char *bufptr;      // Current char in buffer
+	int  nbytes;       // Number of bytes read
+	fd = fdescr;
+
+	// read characters into our string buffer until CR or NL is received
+	bufptr = buffer;
+	while ((nbytes = read(fd, bufptr, buffer + sizeof(buffer) - bufptr - 1)) > 0)
+	{
+		bufptr += nbytes;
+	  	if (bufptr[-1] == '\n' || bufptr[-1] == '\r')
+            		break;
+	}
+
+	// null terminate the string
+	*bufptr = '\0';
+
+	receivedString = (*env)->NewStringUTF(env, (const char*) buffer);
+	return receivedString;
+}
+
+/********************************************************************************/
+
+/*Closing the Port***************************************/
+
+JNIEXPORT void JNICALL Java_JavaJNI_close(JNIEnv *env,
+    jobject thisobject, jint fdescr)
+{
+	close(fdescr);
+}
+
+/********************************************************/
