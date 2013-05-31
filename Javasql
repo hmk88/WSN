@@ -1,0 +1,91 @@
+/* Auther Hafiz Haq
+
+*/
+
+import java.sql.*;
+
+   public class Connect
+   {
+       public static void main (String[] args)
+       {
+           Connection conn = null;
+
+           try
+           {
+               String userName = "pma";
+               String password = "";
+               String url = "jdbc:mysql://localhost/test";
+               Class.forName ("com.mysql.jdbc.Driver").newInstance ();
+               conn = DriverManager.getConnection (url, userName, password);
+               System.out.println ("Database connection established");
+           }
+           catch (Exception e)
+           {
+               System.err.println ("Cannot connect to database server");
+           }
+           finally
+           {
+               if (conn != null)
+               {
+                   try
+                   {
+                	   /*Inserting table*************************************/
+                	   Statement s = conn.createStatement ();
+                	   int count;
+                	   s.executeUpdate ("DROP TABLE IF EXISTS data");
+                	   
+                	   s.executeUpdate (
+                	               "CREATE TABLE data ("
+                	               + "id INT UNSIGNED NOT NULL AUTO_INCREMENT,"
+                	               + "PRIMARY KEY (id),"
+                	               + "Temperature CHAR(40), Accelerometer CHAR(40)," 
+                	               + "Battery CHAR(40), Time CHAR(40), Date CHAR(40))");
+                	   
+                	   count = s.executeUpdate (
+                	               "INSERT INTO data (Temperature, Accelerometer," +
+                	               "Battery, Time, Date)"
+                	               + " VALUES"
+                	               + "('7', '147', '3.7', '10:30', '27.02.2013'),"
+                	               + "('5', '187', '3.5', '10:31', '27.02.2013'),"
+                	               + "('1', '144', '3.1', '10:31', '27.02.2013'),"
+                	               + "('3', '156', '3.9', '10:31', '27.02.2013')");
+                	   System.out.println (count + " rows were inserted");
+                       
+                       /***********************Retrieving table************/
+                       
+                       Statement s1 = conn.createStatement ();
+                       s1.executeQuery ("SELECT id, Temperature, Accelerometer," +
+                       		"Battery, Time, Date FROM data");
+                       ResultSet rs = s1.getResultSet ();
+                       int count1 = 0;
+                       while (rs.next ())
+                       {
+                           int idVal = rs.getInt ("id");
+                           String tempVal = rs.getString ("Temperature");
+                           String accVal = rs.getString ("Accelerometer");
+                           String batVal = rs.getString ("Battery");
+                           String timeVal = rs.getString ("Time");
+                           String dateVal = rs.getString ("Date");
+                           System.out.println (
+                                   "id = " + idVal
+                                   + ", Temperature = " + tempVal
+                                   + ", Accelerometer = " + accVal
+                                   + ", Battery = " + batVal
+                                   + ", Time = " + timeVal
+                                   + ", Date = " + dateVal);
+                           ++count1;
+                       }
+                       rs.close ();
+                       s1.close ();
+                       s.close ();
+                	                          
+                       System.out.println (count1 + " rows were retrieved");
+
+                       System.out.println ("Database connection terminated");
+                       conn.close ();
+                   }
+                   catch (Exception e) {  }
+               }
+           }
+       }
+   }
