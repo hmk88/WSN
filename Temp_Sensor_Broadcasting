@@ -1,0 +1,176 @@
+/***************************************************Tx*****************************************************/
+#include "contiki.h"
+#include "net/rime.h"
+#include "lib/random.h"
+#include "net/rime/rimestats.h"
+#include "dev/leds.h"
+#include "dev/models.h"
+
+#if CONTIKI_TARGET_SENSINODE
+#include "dev/sensinode-sensors.h"
+#else
+#include "lib/sensors.h"
+#endif
+#define DEBUG 1
+#if DEBUG
+#include <stdio.h>
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+#define BROADCAST_CHANNEL 129
+
+/*******************Start*******************************/
+PROCESS(example_broadcast_process, "BROADCAST example");
+AUTOSTART_PROCESSES(&example_broadcast_process);
+/***********************/
+static struct etimer et;
+static struct broadcast_conn broadcast;
+rimeaddr_t addr;
+/**************************************************/
+PROCESS_THREAD(example_broadcast_process, ev, data)
+{
+  static uint16_t counter;
+
+  static int rv;
+  static struct sensors_sensor * sensor;
+  static float sane = 0;
+  static int dec;
+  static float frac;
+
+  PROCESS_BEGIN();
+
+  broadcast_open(&broadcast, BROADCAST_CHANNEL, 0);
+  while(1) {
+
+    etimer_set(&et, CLOCK_SECOND * 2);
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+    etimer_reset(&et);
+
+    if (sensor) {
+      leds_on(LEDS_RED);
+      /*
+       * Temperature:
+       * Using 1.25V ref. voltage (1250mV).
+       * Typical Voltage at 0°C : 743 mV
+       * Typical Co-efficient   : 2.45 mV/°C
+       * Offset at 25°C         : 30 (this varies and needs calibration)
+       *
+       * Thus, at 12bit resolution:
+       *
+       *     ADC x 1250 / 2047 - (743 + 30)    0.61065 x ADC - 773
+       * T = ------------------------------ ~= ------------------- °C
+       *                 2.45                         2.45
+       */
+      rv = sensor->value(ADC_SENSOR_TYPE_TEMP);
+      if(rv != -1) {
+        sane = ((rv * 0.61065 - 773) / 2.45);
+        dec = sane;
+        frac = sane - dec;
+    
+    packetbuf_copyfrom(&counter, sizeof(counter));
+    PRINTF("Sending %u bytes: 0x%04x\n", packetbuf_datalen(), *(uint16_t *) packetbuf_dataptr());
+    PRINTF("  Temp=%d.%02u C (%d)\n", dec, (unsigned int)(frac*100), rv); 
+    }
+    }
+    broadcast_send(&broadcast);
+    counter++;
+    leds_off(LEDS_GREEN);
+  }
+
+  PROCESS_END();
+}
+/****************************************************End************************************************/
+
+/**************************************************Rx***************************************************/
+#include "contiki.h"
+#include "net/rime.h"
+#include "lib/random.h"
+#include "net/rime/rimestats.h"
+#include "dev/leds.h"
+#include "dev/models.h"
+
+#if CONTIKI_TARGET_SENSINODE
+#include "dev/sensinode-sensors.h"
+#else
+#include "lib/sensors.h"
+#endif
+
+#define DEBUG 1
+#if DEBUG
+#include <stdio.h>
+#define PRINTF(...) printf(__VA_ARGS__)
+#else
+#define PRINTF(...)
+#endif
+
+#define BROADCAST_CHANNEL 129
+
+/***********************Start***************************/
+PROCESS(example_broadcast_process, "BROADCAST example");
+AUTOSTART_PROCESSES(&example_broadcast_process);
+/***********************/
+static struct etimer et;
+static struct broadcast_conn broadcast;
+static const struct broadcast_callbacks bc_rx = { broadcast_recv };
+rimeaddr_t addr;
+/**************************************************/
+PROCESS_THREAD(example_broadcast_process, ev, data)
+{
+  static int rv;
+  static struct sensors_sensor * sensor;
+  static float sane = 0;
+  static int dec;
+  static float frac;
+  
+  PROCESS_BEGIN();
+
+  PRINTF("Start\n");
+  broadcast_open(&broadcast, BROADCAST_CHANNEL, &bc_rx);
+  PRINTF("Open Broadcast Connection, channel %u\n", BROADCAST_CHANNEL);
+  leds_off(LEDS_ALL);
+
+  while(1) {
+	
+    etimer_set(&et, CLOCK_SECOND);
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+    etimer_reset(&et);
+
+     if (sensor) {
+      leds_on(LEDS_RED);
+      /*
+       * Temperature:
+       * Using 1.25V ref. voltage (1250mV).
+       * Typical Voltage at 0°C : 743 mV
+       * Typical Co-efficient   : 2.45 mV/°C
+       * Offset at 25°C         : 30 (this varies and needs calibration)
+       *
+       * Thus, at 12bit resolution:
+       *
+       *     ADC x 1250 / 2047 - (743 + 30)    0.61065 x ADC - 773
+       * T = ------------------------------ ~= ------------------- °C
+       *                 2.45                         2.45
+       */
+      rv = sensor->value(ADC_SENSOR_TYPE_TEMP);
+      if(rv != -1) {
+        sane = ((rv * 0.61065 - 773) / 2.45);
+        dec = sane;
+        frac = sane - dec;
+
+       
+    PRINTF("Temp=%d.%02u C (%d)\n", dec, (unsigned int)(frac*100), rv); 
+    }
+    }
+
+}
+    
+  PROCESS_END();
+}
+/***************************************************************************/
+static void broadcast_recv(struct broadcast_conn *c, const rimeaddr_t *from)
+{
+  PRINTF("broadcast message received from %02x.%02x\n", from->u8[0], from->u8[1]);
+  PRINTF("Size=0x%02x: '0x%04x'\n", packetbuf_datalen(), *(uint16_t *) packetbuf_dataptr()); 
+    
+}
+/*******************************************************************End******************************/
